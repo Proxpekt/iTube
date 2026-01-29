@@ -1,0 +1,16 @@
+{
+  "name": "itube",
+  "version": "1.0.0",
+  "description": "This is a youtube like demo app, build for refining my backend skills",
+  "keywords": [
+    "javascript",
+    "node"
+  ],
+  "license": "ISC",
+  "author": "Aayush Saxena",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
