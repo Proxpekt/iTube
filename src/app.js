@@ -1,25 +1,31 @@
-import express from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import { LIMIT } from './constants.js';
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import { LIMIT } from "./constants.js";
 
 const app = express();
 
-app.use(cors({
+app.use(
+  cors({
     origin: process.env.CORS_ORIGIN,
-    credentials: true
-}));
+    credentials: true,
+  })
+);
 
-app.use(express.json({
-    limit: LIMIT
-}));
+app.use(
+  express.json({
+    limit: LIMIT,
+  })
+);
 
-app.use(express.urlencoded({
+app.use(
+  express.urlencoded({
     extended: true,
-    limit: LIMIT
-}));
+    limit: LIMIT,
+  })
+);
 
-app.use(express.static('public'));
+app.use(express.static("public"));
 
 app.use(cookieParser());
 
