@@ -201,12 +201,20 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
-  const user = User.findById(req.user?._id);
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(400, "Old and new password are required");
+  }
+
+  if (oldPassword === newPassword) {
+    throw new ApiError(400, "New password must be different");
+  }
+
+  const user = await User.findById(req.user?._id);
 
   const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
   if (!isPasswordCorrect) {
-    throw new ApiError(400, "Invalid Old Password!");
+    throw new ApiError(401, "Invalid Old Password!");
   }
 
   user.password = newPassword;
@@ -230,13 +238,14 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Atleast one field is required");
   }
 
+  const updateFields = {};
+  if (email) updateFields.email = email;
+  if (fullname) updateFields.fullname = fullname;
+
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
-      $set: {
-        email,
-        fullname,
-      },
+      $set: updateFields,
     },
     { new: true }
   ).select("-password -refreshToken");
@@ -273,6 +282,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, user, "Cover Image updated Successfully!"));
 });
+
 const updateAvatar = asyncHandler(async (req, res) => {
   const avatarLocalPath = req.file?.path;
 
