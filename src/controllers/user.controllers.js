@@ -4,6 +4,25 @@ import { User } from "../models/user.model.js";
 import uploadOnCloudinary from "../utils/cloudinary.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
+const generateAccessAndRefreshToken = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating refresh and access token!"
+    );
+  }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   const { username, email, fullname, password } = req.body;
 
@@ -68,7 +87,83 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, userCreated, "User Registered Successfully!"));
 });
 
-export default registerUser;
+const loginUser = asyncHandler(async (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email) {
+    throw new ApiError(400, "Username or Email is required!");
+  }
+
+  const user = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist!");
+  }
+
+  const isValid = user.isPasswordCorrect(password);
+
+  if (!isValid) {
+    throw new ApiError(401, "Invalid Credentials!");
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    user._id
+  );
+
+  // Now, all things are done and we have to ssend response
+  // We can not send the above user as he does not have refresh token set as it is of instance before
+  // So we can either update the user or take the updated instance from database
+  // This depends on the use case, if this operation feels expensive, then we can update the same user and then save it instead of calling a new user instance from database
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken,
+          refreshToken,
+        },
+        "User logged in Successfully!"
+      )
+    );
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: { refreshToken: undefined },
+    },
+    { new: true }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User Logged Out Successfully!"));
+});
+
+export { registerUser, loginUser, logoutUser };
 
 // STEPS TO REGISTER THE USER
 // 1. get user details from the frontend
@@ -80,3 +175,27 @@ export default registerUser;
 // 7. remove password and refresh token field from response
 // 8. check for user creation
 // 9. return response
+
+// STEPS TO LOGIN THE USER
+// 1. get data from req.body -> {}
+// 2. check if username or email is present (the user can login using both)
+// 3. validate and sanitise the input   (not done here but do it)
+// 4. find the user
+// 5. check the password
+// 6. generate access and refresh token
+// 7. store refresh in database
+// 8. send cookiee to the user
+
+// ENHANCEMENT IN LOGIN
+// 1. generateToken helper function can be made to make one read db operation less
+// 2. The getting of new user can be further made more complete
+
+// STRATEGY FOR LOGOUT
+// For logout, I have to remove cookiee from the client and remove refreshToken of user from my database as well
+// For this, I need to have the 'user'
+// Earlier, in login, we get the user by email or name or by findById, since, we get the required info from frontend via a form and we extract the name and email using the req.body
+// Here, we can not make user fill a form to logout, elsewise he will logout anyone
+// So, we need to have user information associated somehow with the req part during logout
+// For this, we will be designing a custom middleware, to get the req, user information part
+// The work is like the idea that, since by default req can not have files, only text input, so we inject multer so as to handle the files and add 'files' in 'res', so we can use.
+// The middleware we use is 'auth.middleware.js'
