@@ -105,7 +105,7 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User does not exist!");
   }
 
-  const isValid = user.isPasswordCorrect(password);
+  const isValid = await user.isPasswordCorrect(password);
 
   if (!isValid) {
     throw new ApiError(401, "Invalid Credentials!");
@@ -144,7 +144,7 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: { refreshToken: undefined },
+      $unset: { refreshToken: 1 },
     },
     { new: true }
   );
@@ -390,7 +390,7 @@ const getUserHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
       $match: {
-        $_id: mongoose.Types.ObjectId(req.user.$_id),
+        _id: new mongoose.Types.ObjectId(req.user._id),
       },
     },
     {
